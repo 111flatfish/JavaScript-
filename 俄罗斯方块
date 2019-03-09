@@ -1,0 +1,361 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>JavaScript-案例开发-俄罗斯方块</title>
+	
+</head>
+
+<body>
+	<div id="record">
+		&nbsp;
+		<div id="cur">速度：<span id="curSpeedEle"></span> 当前积分：<span id="curScoreEle"></span></div>
+		<div id="max">最高积分：<span id="maxScoreEle"></span></div>
+	</div>
+	<script>
+		//游戏界面
+		var TETRIS_COLS ,TETRIS_ROWS,CELL_SIZE,NO_BLOCK;
+		var createCanvas = function(rows,cols,cellWidth,cellHeight){
+			//创建画布以及网格
+			var tetris_canvas = document.createElement("canvas");
+			tetris_canvas.height = rows * cellHeight;
+			tetris_canvas.width = cols * cellWidth;
+			tetris_canvas.style.border = "1px soild black";
+			tetris_ctx = tetris_canvas.getContext("2d");
+			tetris_ctx.beginPath();
+			for(var i = 0 ; i < rows ; i++){
+				tetris_ctx.moveTo(0,i*cellHeight);
+				tetris_ctx.lineTo(cols*cellWidth,i*cellHeight);
+			}
+			for(var j = 0 ; j < cols; j++){
+				tetris_ctx.moveTo(i*cellWidth,0);
+				tetris_ctx.lineTo(i*cellHeight,rows*cellHeight);
+			}
+			tetris_ctx.closePath();
+			tetris_ctx.strokeStyle = "#aaa";
+			tetris_ctx.lineWidth = 0.3;
+			tetris_ctx.stroke();
+		}
+		
+		//游戏模型
+//		初始化游戏状态，将游戏界面的方块信息记录下来
+		var tetris_status= [];
+		for(var i = 0 ; i < TETRIS_ROWS; i++){
+			tetris_status[i] = [];
+			for(var j = 0; j < TETRIS_COLS;i++){
+				tetris_status[i][j] = NO_BLOCK;
+			}
+		}
+		
+//		颜色对象
+		var colors = {
+			1:"red",
+			2:"blue",
+			3:"green",
+			4:"orange",
+			5:"pink",
+			6:"black",
+			7:"yellow"
+		}
+		//方块的组合情况
+		var blockArr = [
+			
+			//第一种组合：Z
+			[
+				{x:TETRIS_COLS/2-1,y:0,color:1}	//第一个方格
+				{x:TETRIS_COLS/2,y:0,color:1}	//第二个方格
+				{x:TETRIS_COLS/2-1,y:1,color:1}	//第三个方格
+				{x:TETRIS_COLS/2+1,y:1,color:1}	//第四个方格
+			],
+			//第二种组合：反Z
+			[
+				{x:TETRIS_COLS/2+1,y:0,color:2}	//第一个方格
+				{x:TETRIS_COLS/2,y:0,color:2}	//第二个方格
+				{x:TETRIS_COLS/2,y:1,color:2}	//第三个方格
+				{x:TETRIS_COLS/2-1,y:1,color:2}	//第四个方格
+			],
+			[
+				//第三种组合：田
+				{x:TETRIS_COLS/2-1,y:0,color:3}	//第一个方格
+				{x:TETRIS_COLS/2,y:0,color:3}	//第二个方格
+				{x:TETRIS_COLS/2-1,y:1,color:3}	//第三个方格
+				{x:TETRIS_COLS/2,y:1,color:3}	//第四个方格
+			],
+			[
+				//第四种组合：L
+				{x:TETRIS_COLS/2-1,y:0,color:4}	//第一个方格
+				{x:TETRIS_COLS/2-1,y:1,color:4}	//第二个方格
+				{x:TETRIS_COLS/2-1,y:2,color:4}	//第三个方格
+				{x:TETRIS_COLS/2,y:2,color:4}	//第四个方格
+			],
+			[
+				//第五种组合：J
+				{x:TETRIS_COLS/2,y:0,color:5}	//第一个方格
+				{x:TETRIS_COLS/2,y:1,color:5}	//第二个方格
+				{x:TETRIS_COLS/2,y:2,color:5}	//第三个方格
+				{x:TETRIS_COLS/2-1,y:2,color:5}	//第四个方格
+			],
+			[
+				//第六种组合：条
+				{x:TETRIS_COLS/2,y:0,color:6}	//第一个方格
+				{x:TETRIS_COLS/2,y:1,color:6}	//第二个方格
+				{x:TETRIS_COLS/2,y:2,color:6}	//第三个方格
+				{x:TETRIS_COLS/2,y:3,color:6}	//第四个方格
+			],
+			[
+				//第七种组合：⊥
+				{x:TETRIS_COLS/2,y:0,color:7}	//第一个方格
+				{x:TETRIS_COLS/2-1,y:1,color:7}	//第二个方格
+				{x:TETRIS_COLS/2,y:1,color:7}	//第三个方格
+				{x:TETRIS_COLS/2+1,y:1,color:7}	//第四个方格
+			]
+		];
+		//定义正在下落的方块
+		var initblock = function(){
+			//随机生成方块
+			var rand = Math.floor(Math.random()*blockArr.length);
+			currentFall = [
+				{x:blockArr[rand][0].x,y:blockArr[rand][0].y,color:blockArr[rand][0].color},	
+				{x:blockArr[rand][1].x,y:blockArr[rand][1].y,color:blockArr[rand][1].color},	
+				{x:blockArr[rand][2].x,y:blockArr[rand][2].y,color:blockArr[rand][2].color},	
+				{x:blockArr[rand][3].x,y:blockArr[rand][3].y,color:blockArr[rand][3].color},	
+			]
+		};
+		
+//		游戏功能
+//		绘制俄罗斯方块的状态
+		var drawBlock = function(){
+			for(var i = 0 ; i < TETRIS_ROWS; i++){
+				for(var j = 0; j < TETRIS_COLS; j++){
+//					有方块的地方绘制相应的颜色
+					if(tetris_status[i][j] != NO_BLOCK){
+					   		tetris_ctx.fillStyle =  colors[tetris_status[i][j]];
+							tetris_ctx.fillRect(j*CELL_SIZE+1,i*CELL_SIZE+1,CELL_SIZE-2,CELL_SIZE-2);
+					   }
+//					没有方块的地方绘制白色
+					else{
+						tetris_ctx.fillStyle = "white";
+						tetris_ctx.fillRect(j*CELL_SIZE+1,i*CELL_SIZE+1,CELL_SIZE-2,CELL_SIZE-2);
+					}
+				}
+			}
+		}
+		var moveDown = function(){
+			//下落的标志
+			var canDown = true;
+			for(var i = 0 ; i <currentFall.length; i++){
+//				判断是否已经到达底部
+				if(currentFall[i].y>=TETRIS_ROWS-1){
+				   		canDown = false;
+						break;
+				   }
+//				判断下一格是否有方块，有就不能下落
+				if(tetris_status[currentFall[i].y+1][currentFall[i].x] != NO_BLOCK){
+				   		canDown = false;
+						break;
+				   }
+				if(canDown){
+					//将原来的方块涂成白色
+				   		for(var i = 0 ; i <currentFall.length ; i++){
+							var cur = currentFall[i];
+							var color = cur.color = "white";
+							tetris_ctx.fillStyle = color;
+							tetris_ctx.fillRect(cur.x*CELL_SIZE+1,cur.y*CELL_SIZE+1,CELL_SIZE-2,CELL_SIZE-2);		//将第y行和x列的方格涂成相应的颜色		
+						}
+//						遍历每个下落的方块，y+1
+						for(var i = 0 ; i < currentFall.length;i++){
+							var cur = currentFall[i];
+							cur.y++;
+						}
+//						将下移后的方格涂成相应的颜色
+						for(var i = 0 ; i <currentFall.length ; i++){
+							var cur = currentFall[i];
+							tetris_ctx.fillStyle = colors[cur.color];
+							tetris_ctx.fillRect(cur.x*CELL_SIZE+1,cur.y*CELL_SIZE+1,CELL_SIZE-2,CELL_SIZE-2);		//将第y行和x列的方格涂成相应的颜色		
+						}
+				   }
+				else{
+					//不能往下掉,将此时的每个方块的状态记录的localStorage中,保存游戏信息方便下次取用，以及方便消除算法检测
+					for(var i = 0 ; i < currentFall.length;i++){
+						var cur = currentFall[i];
+//						此时有方块到达顶端，游戏结束
+						if(cur.y <2){
+
+							localStorage.removeItem("curScore");
+							localStorage.removeItem("curSpeed");
+							localStorage.removeItem("tetris_status");
+							if(confirm("您已经输了！是否参与排名？")){
+							   		maxScore = localStorage.getItem("maxScore");
+									maxScore = maxScore == null?0:maxScore;		//判断最高分是否存在
+									curScore = document.getElementById("curScoreEle").nodeValue;
+									if(curScore>maxScore){
+									   		localStorage.setItem("maxScore",curScore);
+									   }
+							   }
+							isPlaying = false;
+							clearInterval(curTimer);
+							return;
+						   }
+//						没有方块到达顶端
+						tetris_status[cur.x][cur.y] = cur.color;
+					}
+					
+//					判断是否有可消除的行
+					lineFull();
+//					记录下游戏状态
+					localStorage.setItem("tetris_status",JSON.stringify(tetris_status));
+//					开始新的一个方块
+					initblock();
+					
+					
+				}
+			}
+			
+		}
+		
+//		判断一行是否已满
+		var lineFull(){
+			
+			for(var i = 0 ; i < TETRIS_ROWS; i++){
+				var isFull = true;		//是否已满的标志
+				for(var j = 0 ; j < TETRIS_COLS; j++){
+					if(tetris_status[i][j] == NO_BLOCK){
+						isFull = false;
+						break;
+					}
+						
+				}
+//				如果当前行已满
+				if(isFull){
+//						当前分数加100
+				   		document.getElementById("curScoreEle").innerHTML = curScore += 100;
+//						存储当前分数
+						localStorage.setItem("curScore",curScore);
+//						到达一定分数，增加下落速度
+						if(curScore >= curSpeed *curSpeed *500){
+						   		document.getElementById("curSpeedEle").innerHTML = curSpeed +=1;
+								localStorage.setItem("curSpeed",curSpeed);
+//								调速后清除当前定时器
+								clearInterval(curTimer);
+//								重设定时器
+								curTimer = setInterval("moveDown",500/curSpeed);
+						   }
+//						把当前行上所有方块下移一行，并保存
+						for(var k = i ; k > 0 ; k-- ){
+							for(var l = 0 ; l < TETRIS_COLS; l++){
+//								把上一行的方格信息赋予该行
+								tetris_status[k][l] = tetris_status[k-1][l]
+							}
+						}
+//						消除方块后，重新绘制一遍方块
+						drawBlock();
+						
+				   }
+			}
+			
+		}
+//		游戏交互，移动，旋转
+		window.onkeydown = function(evt){
+			switch(evt.keyCode){
+				case 40:			//向上
+					if(!isPlaying){
+						return ;
+					}
+					moveDown();
+					break;
+				case 37:			//向下
+					if(!isPlaying){
+						return ;
+					}
+					moveLeft();
+					break;
+				case 39:			//向右
+					if(!isPlaying){
+						return ;
+					}
+					moveRight();
+					break;
+				case 38:			//变化
+					if(!isPlaying){
+						return ;
+					}
+					rotaet();
+					break;
+				   }
+		}
+//		左移
+		var moveLeft = function(){
+			var canLeft = true;		//是否能向左
+			for(var i = 0 ; i < currentFall.length; i++){
+				if(currentFall[i].x <= 0){
+				   		canLeft = false;
+						break;
+				   
+				}
+				if(tetris_status[currentFall[i].y][currentFall[x-1]] != NO_BLOCK){
+				   		canLeft = false;
+						break;
+				   }
+			}
+			
+			if(canLeft){
+//					将之前的涂白
+			   		for(var i = 0 ; i <currentFall.length ; i++){
+							var cur = currentFall[i];
+							var color = cur.color = "white";
+							tetris_ctx.fillStyle = color;
+							tetris_ctx.fillRect(cur.x*CELL_SIZE+1,cur.y*CELL_SIZE+1,CELL_SIZE-2,CELL_SIZE-2);		//将第y行和x列的方格涂成相应的颜色		
+						}
+//					左移
+					for(var i = 0 ; i <currentFall.length ; i++){
+						var cur = currentFall[i];
+						cur.x--;
+					}
+//					将左移后的方格涂成相应的颜色
+						for(var i = 0 ; i <currentFall.length ; i++){
+							var cur = currentFall[i];
+							tetris_ctx.fillStyle = colors[cur.color];
+							tetris_ctx.fillRect(cur.x*CELL_SIZE+1,cur.y*CELL_SIZE+1,CELL_SIZE-2,CELL_SIZE-2);		//将第y行和x列的方格涂成相应的颜色		
+						}
+			   }
+		}
+		//		右移
+		var moveRight = function(){
+			var canRight = true;		//是否能向左
+			for(var i = 0 ; i < currentFall.length; i++){
+				if(currentFall[i].x <= 0){
+				   		canRight = false;
+						break;
+				   
+				}
+				if(tetris_status[currentFall[i].y][currentFall[x+1]] != NO_BLOCK){
+				   		canRight = false;
+						break;
+				   }
+			}
+			
+			if(canRight){
+//					将之前的涂白
+			   		for(var i = 0 ; i <currentFall.length ; i++){
+							var cur = currentFall[i];
+							var color = cur.color = "white";
+							tetris_ctx.fillStyle = color;
+							tetris_ctx.fillRect(cur.x*CELL_SIZE+1,cur.y*CELL_SIZE+1,CELL_SIZE-2,CELL_SIZE-2);		//将第y行和x列的方格涂成相应的颜色		
+						}
+//					左移
+					for(var i = 0 ; i <currentFall.length ; i++){
+						var cur = currentFall[i];
+						cur.x++;
+					}
+//					将左移后的方格涂成相应的颜色
+						for(var i = 0 ; i <currentFall.length ; i++){
+							var cur = currentFall[i];
+							tetris_ctx.fillStyle = colors[cur.color];
+							tetris_ctx.fillRect(cur.x*CELL_SIZE+1,cur.y*CELL_SIZE+1,CELL_SIZE-2,CELL_SIZE-2);		//将第y行和x列的方格涂成相应的颜色		
+						}
+			   }
+		}
+		
+	</script>
+</body>
+</html>
